@@ -5,3 +5,5 @@ pymupdf
 pytest
 python-dotenv
 httpx
+sentence-transformers
+chromadb
