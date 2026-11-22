@@ -1,0 +1,25 @@
+{
+  "document": "AI_PDF_Chatbot.pdf",
+  "questions": [
+    {"q": "What is the main goal of the internship project?", "expected_pages": [1]},
+    {"q": "What is the maximum file size and number of pages for uploaded PDFs?", "expected_pages": [1, 2]},
+    {"q": "Why is Ctrl+F not enough for finding information in a PDF?", "expected_pages": [1]},
+    {"q": "What problems come from sending a whole PDF directly to an LLM?", "expected_pages": [1]},
+    {"q": "Which library extracts text from the PDFs?", "expected_pages": [1, 3]},
+    {"q": "Are scanned or image-only PDFs supported?", "expected_pages": [2]},
+    {"q": "What does upload validation have to check?", "expected_pages": [2]},
+    {"q": "What should the system answer when the document does not contain the information?", "expected_pages": [2]},
+    {"q": "Which features are listed as should-have enhancements?", "expected_pages": [2]},
+    {"q": "Which bonus features are listed as could-have?", "expected_pages": [2]},
+    {"q": "Which database tracks the uploaded documents and their status?", "expected_pages": [3]},
+    {"q": "Which framework is used for the user interface?", "expected_pages": [2, 3]},
+    {"q": "What was built in Phase 2 of the timeline?", "expected_pages": [4]},
+    {"q": "How do citations get their exact page numbers in Phase 3?", "expected_pages": [4]},
+    {"q": "How long may processing a 50-page PDF take?", "expected_pages": [4]},
+    {"q": "Who is the CEO of Google?", "expected_pages": []},
+    {"q": "What is the monthly stipend of the intern?", "expected_pages": []},
+    {"q": "When was the Eiffel Tower built?", "expected_pages": []},
+    {"q": "What was the total budget of the project in dollars?", "expected_pages": []},
+    {"q": "Which mobile operating systems does the app support?", "expected_pages": []}
+  ]
+}

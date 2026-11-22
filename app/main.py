@@ -1,15 +1,57 @@
 import hashlib
 import os
 import time
+import json
+import threading
+from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel, Field
 
-from app import config, db, vector_store
+from app import config, db, rag, vector_store
 from app.ingest import file_hash, ingest_pdf
+from app.llm import LLMError
 from app.pdf_utils import PDFValidationError, validate_upload
 
-app = FastAPI(title="AI PDF Chatbot", version="2.0")
+def _warm_up() -> None:
+    """Load the embedding model in the background so the first question is not slow."""
+    try:
+        from app.embeddings import get_model
+
+        get_model()
+    except Exception:
+        pass  # it will simply load on first use instead
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    threading.Thread(target=_warm_up, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="AI PDF Chatbot", version="4.0", lifespan=lifespan)
+
+
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=1000)
+    top_k: int = Field(5, ge=1, le=10)
+    doc_ids: list[str] | None = None  # None = search all documents
+    history: list[ChatTurn] = []  # earlier turns, for follow-up questions
+
+
+class FeedbackRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    answer: str = Field(min_length=1, max_length=5000)
+    rating: Literal["up", "down"]
+    comment: str | None = Field(None, max_length=1000)
 
 
 @app.get("/health")
@@ -89,12 +131,63 @@ async def search_documents(
     top_k: int = Query(5, ge=1, le=20),
     doc_id: list[str] | None = Query(None, description="Limit to these documents"),
     page: int | None = Query(None, ge=1, description="Limit to one page number"),
+    mode: Literal["hybrid", "semantic"] | None = Query(
+        None, description="hybrid = meaning + keywords (default), semantic = meaning only"
+    ),
 ):
-    """Semantic search without any LLM: returns the best passages with page citations."""
+    """Search without any LLM: returns the best passages with page citations."""
     started = time.perf_counter()
-    results = await run_in_threadpool(vector_store.search, q, top_k, doc_id, page)
+    results = await run_in_threadpool(vector_store.search, q, top_k, doc_id, page, mode)
     return {
         "query": q,
+        "mode": mode or config.SEARCH_MODE,
         "took_ms": round((time.perf_counter() - started) * 1000),
         "results": results,
     }
+
+
+@app.post("/ask")
+async def ask_question(request: AskRequest):
+    """Answer a question using only the documents, with page citations.
+    Replies 'Not found in document.' when the documents do not contain the answer."""
+    try:
+        return await run_in_threadpool(
+            rag.answer_question,
+            request.question,
+            request.top_k,
+            request.doc_ids,
+            [turn.model_dump() for turn in request.history],
+        )
+    except LLMError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/ask/stream")
+def ask_question_stream(request: AskRequest):
+    """Same as /ask, but sent as server-sent events: many {"type": "token"} lines while
+    the answer is written, then one {"type": "final"} line with the checked answer."""
+    def events():
+        try:
+            for event in rag.stream_answer(
+                request.question, request.top_k, request.doc_ids,
+                [turn.model_dump() for turn in request.history],
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except LLMError as e:
+            yield f"data: {json.dumps({'type': 'error', 'detail': str(e)})}\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream")
+
+
+@app.post("/feedback")
+def send_feedback(request: FeedbackRequest):
+    """Thumbs up / down for an answer."""
+    feedback_id = db.add_feedback(
+        request.question, request.answer, request.rating, request.comment
+    )
+    return {"id": feedback_id, "saved": True}
+
+
+@app.get("/feedback/summary")
+def feedback_summary():
+    return db.feedback_summary()

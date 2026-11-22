@@ -24,6 +24,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "SQLITE_PATH", str(tmp_path / "meta.db"))
     monkeypatch.setattr(config, "LIBRARY_DIR", str(tmp_path / "library"))
     monkeypatch.setattr(vector_store, "_client", None)
+    vector_store._keyword_cache.clear()
     monkeypatch.setattr(
         vector_store, "embed_documents", lambda texts: [fake_embed(t) for t in texts]
     )

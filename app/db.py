@@ -24,6 +24,18 @@ def _connect() -> sqlite3.Connection:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS feedback (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            question   TEXT NOT NULL,
+            answer     TEXT NOT NULL,
+            rating     TEXT NOT NULL,
+            comment    TEXT,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
     return conn
 
 
@@ -67,3 +79,24 @@ def delete_document(doc_id: str) -> bool:
         with conn:
             cursor = conn.execute("DELETE FROM documents WHERE doc_id = ?", (doc_id,))
     return cursor.rowcount > 0
+
+
+def add_feedback(question: str, answer: str, rating: str, comment: str | None = None) -> int:
+    with closing(_connect()) as conn:
+        with conn:
+            cursor = conn.execute(
+                "INSERT INTO feedback (question, answer, rating, comment, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (question, answer, rating, comment,
+                 datetime.now(timezone.utc).isoformat(timespec="seconds")),
+            )
+    return cursor.lastrowid
+
+
+def feedback_summary() -> dict:
+    with closing(_connect()) as conn:
+        rows = conn.execute(
+            "SELECT rating, COUNT(*) AS n FROM feedback GROUP BY rating"
+        ).fetchall()
+    counts = {row["rating"]: row["n"] for row in rows}
+    return {"up": counts.get("up", 0), "down": counts.get("down", 0)}

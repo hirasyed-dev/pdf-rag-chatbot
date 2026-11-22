@@ -1,0 +1,18 @@
+{
+  "answered_with_right_page": [
+    15,
+    15
+  ],
+  "citation_precision": [
+    18,
+    20
+  ],
+  "absent_rejected": [
+    5,
+    5
+  ],
+  "median_first_token_s": 2.605084650000208,
+  "slowest_first_token_s": 8.592347399999198,
+  "slowest_retrieval_ms": 264,
+  "errors": 0
+}
